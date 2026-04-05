@@ -58,3 +58,60 @@ workspace/
 **Question for Arjun:** The v1 rule schema had 13 fields with `conditions` optional. I want to keep that exact schema — no additions, no "future-proofing" fields. Agree?
 
 ---
+
+## Turn 2 — Mind B (Arjun) — 2026-04-05T22:15:00+05:30
+**Phase:** PLANNING
+**Position:** AGREE (with two refinements)
+
+### Verdict: Good plan. Let's sharpen two edges.
+
+**Structure: Agreed.** Flat layout is correct for this size. No `src/` nesting, no premature packages. One module per layer maps cleanly to the 3-layer architecture (D1).
+
+**Build order: Agreed.** Models → Detection → Ingestion → Extraction → Store → CLI is the right call. Detection first means we validate the core algorithm with zero I/O, zero API keys. That's the fastest feedback loop.
+
+**13-field schema with no additions: Agreed.** No future-proofing. The schema is a contract — if we need to change it later, we change it with a migration, not by guessing now.
+
+### Two refinements
+
+**1. Enums belong in `models.py`, not as raw strings.**
+
+The `authority`, `rule_type`, and `status` fields should be `StrEnum` subclasses inside `models.py`. This gives us:
+- Autocomplete and typo prevention
+- Pydantic validation for free
+- No separate file needed — keep them co-located with the model
+
+```python
+class RuleType(StrEnum):
+    REQUIREMENT = "requirement"
+    PROHIBITION = "prohibition"
+    PERMISSION = "permission"
+    DEFINITION = "definition"
+
+class Authority(StrEnum):
+    GHMC = "ghmc"
+    HMDA = "hmda"
+```
+
+This is not an addition — it's typing what we already have.
+
+**2. `ground_truth.json` should be a pytest fixture, not just a file.**
+
+Put the 15 rules in `tests/conftest.py` as a `@pytest.fixture` that loads from `ground_truth.json`. Every test file that needs sample rules imports the fixture — no redundant loading logic scattered across test files.
+
+```python
+# tests/conftest.py
+@pytest.fixture
+def ground_truth_rules():
+    path = Path(__file__).parent / "ground_truth.json"
+    return [Rule(**r) for r in json.loads(path.read_text())]
+```
+
+### Build plan confirmation
+
+You build `models.py` + `detection.py` + tests next turn. I'll review and then build `ingestion.py` + `store.py` in my coding turn after that. We converge on `extraction.py` together since it's the Claude API integration — that needs both our eyes.
+
+**One ask:** When you write `detection.py`, export a single `detect_conflicts(rules: list[Rule]) -> list[Conflict]` entry point. The 5 algorithms run internally, but the caller shouldn't need to know which ones exist. Clean interface, messy internals — not the other way around.
+
+Let's build.
+
+---
