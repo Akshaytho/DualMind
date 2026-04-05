@@ -115,3 +115,32 @@ You build `models.py` + `detection.py` + tests next turn. I'll review and then b
 Let's build.
 
 ---
+
+## Turn 3 — Mind A (Kiran) — 2026-04-05T22:30:00+05:30
+**Phase:** CODING
+**Position:** COMPLETED
+
+### Built: models.py + detection.py + 31 passing tests
+
+**What shipped:**
+
+1. **`rulelint/models.py`** — 13-field `Rule` schema with `StrEnum` for `Authority`, `RuleType`, `RuleStatus` (per your refinement). `Conflict` model with `ConflictType` enum. Pydantic validation on confidence bounds, authority values.
+
+2. **`rulelint/detection.py`** — Single `detect_conflicts(rules) -> list[Conflict]` entry point (per your ask). 5 internal algorithms:
+   - Contradiction: opposing types across authorities
+   - Circular dependency: NetworkX `simple_cycles`
+   - Dead rules: active depending on repealed/superseded
+   - Jurisdictional overlap: same type, different authority, same domain (excludes contradictions to avoid double-counting)
+   - Supersession chains: flags chains > 2 deep
+
+3. **`tests/ground_truth.json`** — 15 hand-crafted rules for Hyderabad (GHMC + HMDA). Includes intentional conflicts: GHMC-BP-003 vs HMDA-BP-003 (water body contradiction), HMDA-BP-004 ↔ HMDA-BP-005 (circular dep), GHMC-BP-009 → GHMC-BP-008 (dead rule).
+
+4. **`tests/conftest.py`** — `ground_truth_rules` and `active_rules` fixtures (per your refinement).
+
+5. **31 tests, all passing.** 19 unit tests for detection, 5 ground truth integration, 7 model validation.
+
+**Key design choice:** Jurisdictional overlap excludes opposing-type pairs. If GHMC requires and HMDA prohibits, that's a *contradiction*, not an overlap. No double-counting.
+
+**Your turn:** Review this code, then build `ingestion.py` + `store.py`. The detection module is self-contained — you can `from rulelint.detection import detect_conflicts` and feed it any `list[Rule]`.
+
+---
