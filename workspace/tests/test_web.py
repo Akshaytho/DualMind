@@ -10,12 +10,19 @@ from fastapi.testclient import TestClient
 
 from rulelint.ingestion import DocumentText, PageText
 from rulelint.models import Authority, Conflict, ConflictType, Rule, RuleType
-from rulelint.web import app, dry_run_verdict
+from rulelint.web import _safe_db, app, dry_run_verdict
 
 
 @pytest.fixture
 def client():
     return TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _allow_test_db_paths():
+    """Bypass _safe_db path restriction so tmp_path-based DB paths work in tests."""
+    with patch("rulelint.web._safe_db", side_effect=lambda db: db):
+        yield
 
 
 # ── dry_run_verdict unit tests ────────────────────────────────────────────
@@ -328,3 +335,57 @@ class TestAnalyzeEndpoint:
             resp = client.post("/analyze", files={"file": ("test.pdf", b"%PDF-fake", "application/pdf")})
         assert resp.status_code == 422
         assert "no text" in resp.json()["detail"].lower() or "empty" in resp.json()["detail"].lower()
+
+
+# ── HTML frontend tests ──────────────────────────────────────────────────
+
+
+class TestHTMLFrontend:
+    def test_index_returns_html(self, client):
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
+        assert "<title>RuleLint" in resp.text
+        assert "Upload" in resp.text
+
+    def test_index_has_form(self, client):
+        resp = client.get("/")
+        assert '<form id="form">' in resp.text
+        assert 'accept=".pdf"' in resp.text
+        assert "dry-run" in resp.text
+        assert "analyze" in resp.text
+
+    def test_index_has_results_section(self, client):
+        resp = client.get("/")
+        assert "tab-rules" in resp.text
+        assert "tab-conflicts" in resp.text
+        assert "tab-quality" in resp.text
+
+
+# ── DB path validation tests ─────────────────────────────────────────────
+
+
+class TestSafeDb:
+    """Test _safe_db directly (not through endpoints, which have it patched)."""
+
+    def test_accepts_plain_db_name(self):
+        assert _safe_db("rulelint.db") == "rulelint.db"
+
+    def test_accepts_custom_db_name(self):
+        assert _safe_db("myproject.db") == "myproject.db"
+
+    def test_rejects_path_traversal(self):
+        with pytest.raises(Exception):
+            _safe_db("../../etc/passwd")
+
+    def test_rejects_absolute_path(self):
+        with pytest.raises(Exception):
+            _safe_db("/tmp/evil.db")
+
+    def test_rejects_non_db_extension(self):
+        with pytest.raises(Exception):
+            _safe_db("data.sqlite")
+
+    def test_rejects_subdirectory(self):
+        with pytest.raises(Exception):
+            _safe_db("subdir/test.db")

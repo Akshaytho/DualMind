@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from .detection import detect_conflicts
@@ -144,6 +145,18 @@ def _get_api_key() -> str | None:
     return os.environ.get("ANTHROPIC_API_KEY")
 
 
+def _safe_db(db: str) -> str:
+    """Sanitise the db parameter to prevent path traversal.
+
+    Only bare filenames ending in .db are allowed. Anything with path
+    separators or non-.db suffixes is rejected.
+    """
+    name = Path(db).name  # strip any directory components
+    if name != db or not name.endswith(".db"):
+        raise HTTPException(status_code=400, detail="Invalid database name — use a plain .db filename")
+    return name
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
 
@@ -173,6 +186,7 @@ async def dry_run(file: UploadFile) -> DryRunVerdict:
 @app.get("/rules", response_model=RulesResponse)
 def list_rules(db: str = DEFAULT_DB) -> RulesResponse:
     """List all stored rules."""
+    db = _safe_db(db)
     with RuleStore(db) as store:
         rules = store.get_all_rules()
     return RulesResponse(count=len(rules), rules=rules)
@@ -181,6 +195,7 @@ def list_rules(db: str = DEFAULT_DB) -> RulesResponse:
 @app.get("/conflicts", response_model=ConflictsResponse)
 def list_conflicts(db: str = DEFAULT_DB, conflict_type: str | None = None) -> ConflictsResponse:
     """List detected conflicts, optionally filtered by type."""
+    db = _safe_db(db)
     ct = ConflictType(conflict_type) if conflict_type else None
     with RuleStore(db) as store:
         conflicts = store.get_conflicts(ct)
@@ -190,6 +205,7 @@ def list_conflicts(db: str = DEFAULT_DB, conflict_type: str | None = None) -> Co
 @app.post("/detect", response_model=ConflictsResponse)
 def run_detection(db: str = DEFAULT_DB) -> ConflictsResponse:
     """Re-run conflict detection on all stored rules."""
+    db = _safe_db(db)
     with RuleStore(db) as store:
         rules = store.get_all_rules()
         if not rules:
@@ -209,6 +225,8 @@ async def analyze(
 
     API key is read from server-side ANTHROPIC_API_KEY env var (never from request).
     """
+    db = _safe_db(db)
+
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="File must be a PDF")
 
@@ -255,3 +273,155 @@ async def analyze(
         )
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+# ── HTML Frontend ─────────────────────────────────────────────────────────
+
+_INDEX_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RuleLint — Regulation Conflict Detector</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;max-width:860px;margin:0 auto;padding:1.5rem;color:#1a1a1a;background:#fafafa}
+h1{font-size:1.5rem;margin-bottom:.25rem}
+.subtitle{color:#666;margin-bottom:1.5rem;font-size:.9rem}
+.card{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:1.25rem;margin-bottom:1rem}
+h2{font-size:1.1rem;margin-bottom:.75rem}
+label{font-weight:600;display:block;margin-bottom:.25rem;font-size:.9rem}
+input[type=file]{margin-bottom:.75rem}
+select,input[type=text]{padding:.4rem .6rem;border:1px solid #ccc;border-radius:4px;font-size:.9rem;margin-bottom:.75rem;width:100%}
+button{background:#2563eb;color:#fff;border:none;padding:.5rem 1.2rem;border-radius:4px;cursor:pointer;font-size:.9rem}
+button:hover{background:#1d4ed8}
+button:disabled{background:#94a3b8;cursor:not-allowed}
+#status{margin-top:.75rem;padding:.5rem;border-radius:4px;font-size:.85rem;display:none}
+.ok{background:#dcfce7;color:#166534;display:block}
+.err{background:#fee2e2;color:#991b1b;display:block}
+.info{background:#dbeafe;color:#1e40af;display:block}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:.5rem}
+th,td{text-align:left;padding:.4rem .6rem;border-bottom:1px solid #e5e7eb}
+th{background:#f1f5f9;font-weight:600}
+.severity-high{color:#dc2626;font-weight:600}
+.severity-medium{color:#d97706}
+.severity-low{color:#059669}
+.hidden{display:none}
+.tabs{display:flex;gap:.5rem;margin-bottom:.75rem}
+.tab{padding:.35rem .8rem;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;font-size:.85rem}
+.tab.active{background:#2563eb;color:#fff;border-color:#2563eb}
+#results{margin-top:1rem}
+</style>
+</head>
+<body>
+<h1>RuleLint</h1>
+<p class="subtitle">Upload a municipal PDF to extract rules and detect conflicts</p>
+
+<div class="card">
+<h2>Upload &amp; Analyze</h2>
+<form id="form">
+  <label for="pdf">PDF document</label>
+  <input type="file" id="pdf" accept=".pdf" required>
+  <label for="mode">Action</label>
+  <select id="mode">
+    <option value="dry-run">Dry run (check quality only)</option>
+    <option value="analyze">Full analysis (requires API key on server)</option>
+  </select>
+  <div id="authority-row" class="hidden">
+    <label for="authority">Authority hint (optional)</label>
+    <input type="text" id="authority" placeholder="e.g. ghmc, hmda">
+  </div>
+  <button type="submit" id="btn">Upload</button>
+</form>
+<div id="status"></div>
+</div>
+
+<div id="results" class="hidden">
+<div class="card">
+  <div class="tabs">
+    <span class="tab active" data-tab="rules">Rules</span>
+    <span class="tab" data-tab="conflicts">Conflicts</span>
+    <span class="tab" data-tab="quality">Quality</span>
+  </div>
+  <div id="tab-rules"></div>
+  <div id="tab-conflicts" class="hidden"></div>
+  <div id="tab-quality" class="hidden"></div>
+</div>
+</div>
+
+<script>
+const form=document.getElementById('form'),pdf=document.getElementById('pdf'),
+  mode=document.getElementById('mode'),btn=document.getElementById('btn'),
+  status=document.getElementById('status'),results=document.getElementById('results'),
+  authRow=document.getElementById('authority-row'),authInput=document.getElementById('authority');
+
+mode.addEventListener('change',()=>{authRow.classList.toggle('hidden',mode.value!=='analyze')});
+
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  ['rules','conflicts','quality'].forEach(id=>{
+    document.getElementById('tab-'+id).classList.toggle('hidden',id!==t.dataset.tab);
+  });
+}));
+
+function setStatus(msg,cls){status.className=cls;status.textContent=msg;status.style.display='block'}
+
+form.addEventListener('submit',async e=>{
+  e.preventDefault();
+  if(!pdf.files.length)return;
+  btn.disabled=true;
+  setStatus('Uploading...','info');
+  results.classList.add('hidden');
+  const fd=new FormData();
+  fd.append('file',pdf.files[0]);
+  let url='/'+mode.value;
+  if(mode.value==='analyze'&&authInput.value)url+='?authority='+encodeURIComponent(authInput.value);
+  try{
+    const r=await fetch(url,{method:'POST',body:fd});
+    const d=await r.json();
+    if(!r.ok){setStatus('Error: '+(d.detail||r.statusText),'err');return}
+    if(mode.value==='dry-run')showDryRun(d);
+    else showAnalysis(d);
+    results.classList.remove('hidden');
+    setStatus(mode.value==='dry-run'?'Quality check complete: '+d.verdict:'Analysis complete: '+d.rules_count+' rules, '+d.conflicts_count+' conflicts','ok');
+  }catch(err){setStatus('Network error: '+err.message,'err')}
+  finally{btn.disabled=false}
+});
+
+function showDryRun(d){
+  document.getElementById('tab-rules').innerHTML='<p>Run full analysis to see rules.</p>';
+  document.getElementById('tab-conflicts').innerHTML='<p>Run full analysis to see conflicts.</p>';
+  let h='<table><tr><th>Page</th><th>Method</th><th>Chars</th><th>Grade</th><th>Alpha</th><th>Avg Word</th></tr>';
+  (d.pages||[]).forEach(p=>{h+='<tr><td>'+p.page_number+'</td><td>'+p.method+'</td><td>'+p.chars+'</td><td>'+p.grade+'</td><td>'+p.alpha_ratio.toFixed(2)+'</td><td>'+p.avg_word_length.toFixed(1)+'</td></tr>'});
+  h+='</table>';
+  document.getElementById('tab-quality').innerHTML=h;
+  document.querySelectorAll('.tab').forEach(t=>{t.classList.toggle('active',t.dataset.tab==='quality')});
+  ['rules','conflicts','quality'].forEach(id=>{document.getElementById('tab-'+id).classList.toggle('hidden',id!=='quality')});
+}
+
+function showAnalysis(d){
+  let h='<table><tr><th>ID</th><th>Title</th><th>Authority</th><th>Type</th><th>Section</th></tr>';
+  (d.rules||[]).forEach(r=>{h+='<tr><td>'+r.rule_id+'</td><td>'+esc(r.title)+'</td><td>'+r.authority+'</td><td>'+r.rule_type+'</td><td>'+(r.section_ref||'&#8212;')+'</td></tr>'});
+  h+='</table>';
+  document.getElementById('tab-rules').innerHTML=h;
+
+  let c='<table><tr><th>Type</th><th>Rules</th><th>Severity</th><th>Description</th></tr>';
+  (d.conflicts||[]).forEach(x=>{c+='<tr><td>'+x.conflict_type+'</td><td>'+x.rule_ids.join(', ')+'</td><td><span class="severity-'+x.severity+'">'+x.severity+'</span></td><td>'+esc(x.description)+'</td></tr>'});
+  c+='</table>';
+  document.getElementById('tab-conflicts').innerHTML=c;
+  document.getElementById('tab-quality').innerHTML='<p>Use dry-run mode for quality details.</p>';
+}
+
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+</script>
+</body>
+</html>
+"""
+
+
+@app.get("/", response_class=HTMLResponse)
+def index() -> str:
+    """Serve the single-page HTML frontend."""
+    return _INDEX_HTML

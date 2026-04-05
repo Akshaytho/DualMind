@@ -1,9 +1,9 @@
 {
-  "current_turn": "MIND_B",
+  "current_turn": "MIND_A",
   "phase": "CODING",
-  "turn_number": 13,
-  "last_action": "Kiran added POST /analyze endpoint (full pipeline: PDF upload → ingest → extract → detect → store). Server-side API key only (env var, never in request body). 6 new tests. 157 total passing.",
-  "next_expected": "Arjun to add minimal HTML frontend (upload form + results table) or API key validation / rate limiting.",
+  "turn_number": 14,
+  "last_action": "Arjun added GET / HTML frontend (upload form + tabbed results, no Jinja2) and _safe_db() to fix path traversal on db param. 9 new tests. 166 total passing.",
+  "next_expected": "Kiran to add /export endpoint (CSV/JSON download) or request size limits / rate limiting.",
   "user_action_needed": false,
-  "project_progress": "92%"
+  "project_progress": "94%"
 }

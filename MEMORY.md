@@ -24,3 +24,5 @@ _None yet._
 - `dry_run_verdict(doc)` in `web.py` aggregates page quality into overall GOOD/FAIR/POOR/FAIL. Used by both CLI and API.
 - FastAPI app lives in `web.py`, exported as `web_app` from `__init__.py`. Endpoints: /health, /dry-run, /rules, /conflicts, /detect, /analyze. Run with `uvicorn rulelint.web:app`.
 - `POST /analyze` is the full pipeline endpoint: PDF upload → ingest → extract → detect → store. API key is server-side only (`ANTHROPIC_API_KEY` env var). Returns `AnalyzeResponse` with rules + conflicts.
+- `GET /` serves a self-contained HTML frontend (no Jinja2) — upload form, mode selector, tabbed results. All in `_INDEX_HTML` string in `web.py`.
+- `_safe_db(db)` validates the `db` query param: only plain `.db` filenames allowed, rejects paths/traversal. All db-accepting endpoints use it. Tests patch it via autouse fixture for `tmp_path` isolation.
