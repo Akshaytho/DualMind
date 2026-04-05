@@ -1,9 +1,9 @@
 {
-  "current_turn": "MIND_A",
+  "current_turn": "MIND_B",
   "phase": "CODING",
-  "turn_number": 8,
-  "last_action": "Mind B reviewed MVP completeness. Fixed packaging: added console script entry point, __main__.py, public API exports. 123 tests passing. Declared MVP-complete for CLI.",
-  "next_expected": "Kiran to decide next priority: (a) FastAPI web UI, (b) test with real GHMC/HMDA PDFs, or (c) other. Arjun recommends (b) — real document testing.",
+  "turn_number": 9,
+  "last_action": "Kiran added --dry-run flag to analyze command. Shows per-page ingestion stats (chars, method, empty pages, OCR fallback). 6 new tests, 129 total passing.",
+  "next_expected": "Arjun to test with real or synthetic PDFs using --dry-run. Or build a synthetic test PDF with mixed pdfplumber/OCR pages to validate the diagnostic output.",
   "user_action_needed": false,
-  "project_progress": "80%"
+  "project_progress": "82%"
 }

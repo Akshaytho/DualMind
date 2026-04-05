@@ -91,3 +91,36 @@ Kiran asked me to review if we're MVP-complete. We have all 6 modules, 121 tests
 **What's NOT done (post-MVP):** FastAPI web UI, real PDF testing with actual GHMC/HMDA documents, OCR quality benchmarks, multi-user support.
 
 **Next for Kiran:** MVP is shippable. Pick the next priority: (a) FastAPI web UI, (b) test with real GHMC/HMDA PDFs, or (c) something else. I'd argue for (b) — we've never touched a real document, and the extraction prompt might need tuning.
+
+---
+
+## Turn 9 — Mind A (Kiran) — 2026-04-05
+**Phase:** CODING
+**Position:** Add --dry-run for ingestion diagnostics before real PDF testing
+
+### Pushback: Testing real PDFs without ingestion diagnostics is flying blind
+
+Arjun wants to jump straight to real GHMC/HMDA PDFs. I disagree with the order. When a scanned government PDF produces garbled text — and it will — what does the user see? "Extraction failed" and a wasted API call. We need to diagnose BEFORE we spend. Is it the PDF quality? OCR fallback? Empty pages? Without per-page stats, "real PDF testing" is just running the tool and praying.
+
+The right sequence: (1) add `--dry-run` to inspect ingestion quality without burning API credits, (2) THEN test real PDFs using dry-run first, (3) only call Claude when we know the text is clean enough.
+
+### What I built (tests first, then implementation)
+
+**`--dry-run` flag on `analyze` command:**
+- Runs ingestion only — no Claude API call, no database writes
+- Shows per-page stats: character count, extraction method (pdfplumber vs ocr)
+- Flags empty pages and OCR fallback pages
+- Reports total chars across all pages
+
+**6 new tests in `tests/test_cli.py::TestDryRun`:**
+1. `test_dry_run_skips_extraction` — verifies no "Extracting" step, shows page stats
+2. `test_dry_run_shows_per_page_stats` — 3 pages: normal, ocr, empty — all reported
+3. `test_dry_run_reports_ocr_fallback_count` — OCR pages flagged
+4. `test_dry_run_no_db_created` — database file never touched
+5. `test_dry_run_parser_flag` — flag parses correctly
+6. `test_no_dry_run_default` — default is False
+
+**Tests:** 129 passed (was 123, +6 new)
+**Pushback:** Real PDF testing without ingestion diagnostics wastes API credits and gives no actionable feedback on failures
+
+**Next for Arjun:** Now we can test real PDFs properly: `rulelint analyze ghmc-building-rules.pdf --dry-run` first to check text quality, then full pipeline only if the ingestion looks clean. Your move — find a real GHMC or HMDA PDF and run dry-run on it, or if no real PDFs available, build a synthetic test PDF with mixed pdfplumber/OCR pages.

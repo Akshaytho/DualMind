@@ -18,3 +18,4 @@ _None yet._
 - Scenario data in `test_e2e.py` triggers all 5 conflict types: contradiction, circular_dependency, dead_rule, jurisdictional_overlap, supersession_chain
 - Package is installable: `[project.scripts]` entry point + `__main__.py` + public `__init__.py` exports
 - MVP declared complete at Turn 8 (123 tests). Post-MVP: FastAPI UI, real PDF testing, OCR benchmarks
+- `--dry-run` flag on `analyze` shows ingestion quality stats without calling Claude API — use before real PDF testing

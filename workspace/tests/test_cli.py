@@ -378,6 +378,113 @@ class TestIntegrationRoundTrip:
         assert "2 rules total" in rules_out
 
 
+# ── dry-run (ingestion-only) ─────────────────────────────────────────────
+
+
+class TestDryRun:
+    @patch("rulelint.cli.ingest_pdf")
+    def test_dry_run_skips_extraction(self, mock_ingest, tmp_path, capsys):
+        """--dry-run should ingest PDF but NOT call Claude API."""
+        from rulelint.ingestion import DocumentText, PageText
+
+        mock_ingest.return_value = DocumentText(
+            source_path="test.pdf",
+            pages=[
+                PageText(page_number=1, text="Regulation section 5.1 setback rules " * 20, method="pdfplumber"),
+                PageText(page_number=2, text="Building code requirements " * 15, method="pdfplumber"),
+            ],
+        )
+
+        pdf_path = tmp_path / "test.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+        result = main(["analyze", str(pdf_path), "--dry-run"])
+        assert result == 0
+
+        output = capsys.readouterr().out
+        assert "Ingesting" in output
+        assert "Extracting" not in output  # No extraction step
+        assert "2 pages" in output
+        assert "pdfplumber" in output
+
+    @patch("rulelint.cli.ingest_pdf")
+    def test_dry_run_shows_per_page_stats(self, mock_ingest, tmp_path, capsys):
+        """Dry run should show per-page character counts and extraction method."""
+        from rulelint.ingestion import DocumentText, PageText
+
+        mock_ingest.return_value = DocumentText(
+            source_path="test.pdf",
+            pages=[
+                PageText(page_number=1, text="A" * 500, method="pdfplumber"),
+                PageText(page_number=2, text="B" * 100, method="ocr"),
+                PageText(page_number=3, text="", method="pdfplumber"),
+            ],
+        )
+
+        pdf_path = tmp_path / "test.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+        result = main(["analyze", str(pdf_path), "--dry-run"])
+        assert result == 0
+
+        output = capsys.readouterr().out
+        assert "Page 1" in output
+        assert "500 chars" in output
+        assert "Page 2" in output
+        assert "ocr" in output
+        assert "Page 3" in output
+        assert "EMPTY" in output or "0 chars" in output
+
+    @patch("rulelint.cli.ingest_pdf")
+    def test_dry_run_reports_ocr_fallback_count(self, mock_ingest, tmp_path, capsys):
+        """Dry run should warn about OCR fallback pages."""
+        from rulelint.ingestion import DocumentText, PageText
+
+        mock_ingest.return_value = DocumentText(
+            source_path="test.pdf",
+            pages=[
+                PageText(page_number=1, text="Good text " * 50, method="pdfplumber"),
+                PageText(page_number=2, text="OCR text " * 20, method="ocr"),
+            ],
+        )
+
+        pdf_path = tmp_path / "test.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+        result = main(["analyze", str(pdf_path), "--dry-run"])
+        assert result == 0
+
+        output = capsys.readouterr().out
+        assert "ocr" in output.lower()
+
+    @patch("rulelint.cli.ingest_pdf")
+    def test_dry_run_no_db_created(self, mock_ingest, tmp_path):
+        """--dry-run should not create or touch the database."""
+        from rulelint.ingestion import DocumentText, PageText
+
+        mock_ingest.return_value = DocumentText(
+            source_path="test.pdf",
+            pages=[PageText(page_number=1, text="Some text " * 10, method="pdfplumber")],
+        )
+
+        pdf_path = tmp_path / "test.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 fake")
+        db_path = tmp_path / "test.db"
+
+        main(["analyze", str(pdf_path), "--dry-run", "--db", str(db_path)])
+        assert not db_path.exists()
+
+    def test_dry_run_parser_flag(self):
+        parser = _build_parser()
+        args = parser.parse_args(["analyze", "test.pdf", "--dry-run"])
+        assert args.dry_run is True
+
+    def test_no_dry_run_default(self):
+        parser = _build_parser()
+        args = parser.parse_args(["analyze", "test.pdf"])
+        assert args.dry_run is False
+
+
 # ── __main__ and public API ──────────────────────────────────────────────
 
 

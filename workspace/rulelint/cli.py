@@ -47,6 +47,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_analyze.add_argument("--authority", choices=["ghmc", "hmda"], help="Authority hint for extraction")
     p_analyze.add_argument("--db", default=DEFAULT_DB, help="SQLite database path")
     p_analyze.add_argument("--api-key", dest="api_key", help="Anthropic API key (or set ANTHROPIC_API_KEY)")
+    p_analyze.add_argument("--dry-run", dest="dry_run", action="store_true", default=False, help="Ingest only — show text quality stats, skip extraction (no API credits used)")
     p_analyze.set_defaults(func=_cmd_analyze)
 
     # ── detect: run detection on stored rules ────────────────────────────
@@ -87,6 +88,11 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
         print("No usable text extracted from PDF.", file=sys.stderr)
         return 1
     print(f"  {doc.page_count} pages, {len(doc.full_text)} chars extracted")
+
+    # Dry run: show ingestion quality stats and exit (no API call)
+    if args.dry_run:
+        _print_ingestion_report(doc)
+        return 0
 
     # Step 2: Extract
     print("Extracting rules via Claude API...")
@@ -167,6 +173,34 @@ def _cmd_conflicts(args: argparse.Namespace) -> int:
             print(f"  [{severity}] {c.conflict_type}: {c.description}")
         print(f"\n{len(conflicts)} conflicts total")
     return 0
+
+
+def _print_ingestion_report(doc) -> None:
+    """Print per-page text quality stats for --dry-run."""
+    ocr_pages = []
+    empty_pages = []
+    total_chars = 0
+
+    for p in doc.pages:
+        chars = len(p.text)
+        total_chars += chars
+        method_tag = f" [{p.method}]" if p.method != "pdfplumber" else " [pdfplumber]"
+
+        if chars == 0:
+            empty_pages.append(p.page_number)
+            print(f"  Page {p.page_number}: EMPTY{method_tag}")
+        else:
+            print(f"  Page {p.page_number}: {chars} chars{method_tag}")
+
+        if p.method == "ocr":
+            ocr_pages.append(p.page_number)
+
+    print(f"\nTotal: {doc.page_count} pages, {total_chars} chars")
+    if ocr_pages:
+        print(f"  OCR fallback on {len(ocr_pages)} page(s): {ocr_pages}")
+    if empty_pages:
+        print(f"  Empty pages: {empty_pages}")
+    print("Dry run complete — no API credits used.")
 
 
 def _print_summary(rules: list, conflicts: list) -> None:
