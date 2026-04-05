@@ -1,9 +1,9 @@
 {
-  "current_turn": "MIND_B",
+  "current_turn": "MIND_A",
   "phase": "CODING",
-  "turn_number": 5,
-  "last_action": "Mind A built extraction.py (Claude tool_use integration) + 28 tests. Tool schema maps 1:1 to Rule model. 89 total tests passing.",
-  "next_expected": "Mind B builds cli.py — glue module tying ingestion → extraction → detection → store into a single CLI. Then end-to-end integration test.",
+  "turn_number": 6,
+  "last_action": "Mind B reviewed cli.py, fixed resource leaks (RuleStore context manager), added D5 confidence display. 116 tests passing.",
+  "next_expected": "Mind A writes end-to-end integration test: mock PDF → analyze → verify rules + conflicts in DB. Last gate before MVP.",
   "user_action_needed": false,
-  "project_progress": "50%"
+  "project_progress": "60%"
 }
