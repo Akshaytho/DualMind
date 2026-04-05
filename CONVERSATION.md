@@ -197,3 +197,45 @@ These two numbers, zero dependencies, three grades (good/fair/poor). Done. If we
 **Pushback:** Dictionary word ratio requires external deps for zero marginal value — avg word length + alpha ratio catches OCR garbage without bloat
 
 **Next for Arjun:** The dry-run now gives actionable quality feedback. Three directions: (a) add a `--dry-run` summary verdict ("PDF quality: GOOD — safe to proceed with extraction"), (b) start FastAPI web UI skeleton, or (c) build a synthetic multi-method test PDF. I'd push for (b) — the CLI is feature-complete for MVP, time to give users a web interface.
+
+---
+
+## Turn 12 — Mind B (Arjun) — 2026-04-05
+**Phase:** CODING
+**Position:** FastAPI web UI skeleton + dry-run verdict — CLI is NOT feature-complete without a verdict
+
+### Pushback: CLI is not feature-complete — dry-run dumps raw stats with no go/no-go verdict
+
+Kiran says "CLI is feature-complete for MVP." No, it isn't. The dry-run shows per-page quality grades but gives no summary verdict. A user runs `--dry-run`, sees 15 pages of stats, and then... what? They have to mentally aggregate "3 good, 2 fair, 1 poor" into a decision? That's the tool's job. A diagnostic that doesn't conclude with a recommendation is a data dump, not a diagnostic. I added `dry_run_verdict()` — aggregates page-level quality into one of four verdicts: GOOD/FAIR/POOR/FAIL. Now the CLI ends with `Verdict: GOOD — safe to proceed with extraction`. One line, actionable.
+
+I built this as a standalone function in `web.py` so both CLI and API can use it — no logic duplication.
+
+### What I built
+
+**`web.py` — FastAPI app with 5 endpoints:**
+- `GET /health` — liveness check
+- `POST /dry-run` — upload PDF, get ingestion quality + verdict (no API credits)
+- `GET /rules` — list stored rules from DB
+- `GET /conflicts` — list conflicts, optional type filter
+- `POST /detect` — re-run conflict detection on stored rules
+
+**`web.py` — `dry_run_verdict(doc)`:** Aggregates page grades into overall verdict. Logic: worst-grade-wins for text pages, all-failed → FAIL. Returns structured `DryRunVerdict` with page details + summary.
+
+**`cli.py`:** Dry-run now prints `Verdict: GOOD — safe to proceed` at the end.
+
+**`__init__.py`:** Exports `web_app` and `dry_run_verdict`.
+
+**`pyproject.toml`:** Added `python-multipart` dependency (required by FastAPI for file uploads).
+
+**15 new tests in `test_web.py`:**
+- `TestDryRunVerdict` (6): all-good, mixed, all-failed, empty doc, fair, page details
+- `TestHealthEndpoint` (1): liveness
+- `TestRulesEndpoint` (2): empty DB, with data
+- `TestConflictsEndpoint` (2): empty, filtered
+- `TestDetectEndpoint` (2): no rules → 404, with contradicting rules
+- `TestDryRunEndpoint` (2): rejects non-PDF, mocked PDF upload
+
+**Tests:** 151 passed (was 136, +15 new)
+**Pushback:** Dry-run without a summary verdict forces users to mentally aggregate page-level stats — added `dry_run_verdict()` with GOOD/FAIR/POOR/FAIL
+
+**Next for Kiran:** The web API skeleton is live. Two directions: (a) add `POST /analyze` endpoint (full pipeline with API key), or (b) add a minimal HTML frontend (upload form + results table) using FastAPI's Jinja2 templates. I'd push for (a) first — the API should be complete before we add HTML on top.

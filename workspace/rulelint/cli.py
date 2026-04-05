@@ -11,6 +11,7 @@ from .extraction import ExtractionError, extract_rules
 from .ingestion import ingest_pdf, text_quality
 from .models import ConflictType
 from .store import RuleStore
+from .web import dry_run_verdict
 
 DEFAULT_DB = "rulelint.db"
 
@@ -207,6 +208,9 @@ def _print_ingestion_report(doc) -> None:
         print(f"  Extraction failed on {len(failed_pages)} page(s): {failed_pages}")
     if empty_pages:
         print(f"  Empty pages: {empty_pages}")
+
+    v = dry_run_verdict(doc)
+    print(f"\nVerdict: {v.verdict}")
     print("Dry run complete — no API credits used.")
 
 

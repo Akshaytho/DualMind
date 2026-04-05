@@ -5,6 +5,7 @@ from .ingestion import ingest_pdf, DocumentText, text_quality
 from .extraction import extract_rules, ExtractionError
 from .detection import detect_conflicts
 from .store import RuleStore
+from .web import app as web_app, dry_run_verdict
 
 __all__ = [
     "Rule",
@@ -20,4 +21,6 @@ __all__ = [
     "ExtractionError",
     "detect_conflicts",
     "RuleStore",
+    "web_app",
+    "dry_run_verdict",
 ]

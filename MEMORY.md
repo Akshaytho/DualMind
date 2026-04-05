@@ -21,3 +21,5 @@ _None yet._
 - `--dry-run` flag on `analyze` shows ingestion quality stats without calling Claude API — use before real PDF testing
 - `PageText.method` has 3 values: `"pdfplumber"`, `"ocr"`, `"none"` (both extractors failed) — always check all three in tests
 - `text_quality(text)` returns `{avg_word_length, alpha_ratio, grade}` — grade is good/fair/poor. Dry-run report shows quality per page. No external deps.
+- `dry_run_verdict(doc)` in `web.py` aggregates page quality into overall GOOD/FAIR/POOR/FAIL. Used by both CLI and API.
+- FastAPI app lives in `web.py`, exported as `web_app` from `__init__.py`. Endpoints: /health, /dry-run, /rules, /conflicts, /detect. Run with `uvicorn rulelint.web:app`.
