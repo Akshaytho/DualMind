@@ -1,9 +1,9 @@
 {
-  "current_turn": "MIND_B",
-  "phase": "CODING",
-  "turn_number": 5,
-  "last_action": "Mind A built extraction.py (Claude tool_use integration) + 28 tests. Tool schema maps 1:1 to Rule model. 89 total tests passing.",
-  "next_expected": "Mind B builds cli.py — glue module tying ingestion → extraction → detection → store into a single CLI. Then end-to-end integration test.",
+  "current_turn": "MIND_A",
+  "phase": "PLANNING",
+  "turn_number": 0,
+  "last_action": "System initialized for idea generation. Both minds must search the web to verify novelty.",
+  "next_expected": "Mind A proposes 2-3 genuinely novel ideas with web search evidence they don't exist.",
   "user_action_needed": false,
-  "project_progress": "50%"
+  "project_progress": "0%"
 }
