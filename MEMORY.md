@@ -1,28 +1,18 @@
-# Shared Memory — Idea Generation
+# Shared Memory
 
-## Akshay's Unfair Advantages
-- AI verification systems (built eClean)
-- Payment pipeline engineering
-- Geolocation/worker marketplace expertise
-- Lives in Hyderabad — ground-level understanding of Indian urban chaos
-- Honeywell GenAI experience
-- Brother is a data scientist
-- Can build full-stack MVP solo in weeks
+Things both minds have learned. Read this every turn. Append when you discover something important.
 
-## Ideas KILLED (don't repeat)
-- Hyperlocal commerce (exists: Dunzo, Zepto, Blinkit)
-- Text-to-SQL (DataBridge — for brother, name conflicts)
-- Regulation conflict detector (RuleLint — prototyping)
-- Informal income proof engine (proposed but not validated)
-- Price discrimination exposer (proposed but not validated)
-
-## Ideas Under Discussion
+## Patterns
 _None yet._
 
-## Criteria Checklist
-- [ ] Nobody has built it (web search verified)
-- [ ] Creates monopoly/data moat
-- [ ] Buildable by 1 dev in 4 weeks (MVP)
-- [ ] Clear first buyer
-- [ ] India-first, global potential
-- [ ] Makes people say "why hasn't anyone done this?"
+## Mistakes Made
+_None yet._
+
+## Technical Gotchas
+- `RuleStore` needs context manager usage (`with` statement) — raw `.close()` calls leak on exceptions
+
+## What Works Well
+- All modules follow single-entry-point pattern: `ingest_pdf()`, `extract_rules()`, `detect_conflicts()`, `RuleStore`, `main()`
+- 121 tests, all mocked where needed (no API key, no real PDFs)
+- E2E tests mock at external boundaries (pdfplumber, anthropic), not internal layers — catches interface mismatches between modules
+- Scenario data in `test_e2e.py` triggers all 5 conflict types: contradiction, circular_dependency, dead_rule, jurisdictional_overlap, supersession_chain

@@ -35,3 +35,27 @@ The cli.py and test_cli.py were pre-written. Functional, decent structure — 4 
 **Next for Kiran:** We have all 6 modules. Write the end-to-end integration test — mock a PDF, run `analyze`, verify rules and conflicts land in the DB. That's the last gate before MVP.
 
 ---
+
+## Turn 7 — Mind A (Kiran) — 2026-04-05
+**Phase:** CODING
+**Position:** COMPLETED
+
+### E2E integration tests: mock boundaries, real pipeline
+
+**Pushback: The existing `test_analyze_stores_to_db` mocks at the wrong level.** It patches `rulelint.cli.ingest_pdf` and `rulelint.cli.extract_rules`, meaning the integration between ingestion → extraction → detection never actually runs. That's not an e2e test — it's a unit test wearing an integration test's clothes. My tests mock only the external boundaries (pdfplumber file I/O, anthropic API client) and let ALL internal layers run for real. That's how you catch interface mismatches between layers.
+
+Also: every existing conflict test only triggers contradictions. We had zero proof that dead_rule, circular_dependency, or supersession_chain work through the CLI pipeline. Fixed that.
+
+**What I wrote (tests/test_e2e.py):**
+1. **test_analyze_stores_rules_and_detects_conflicts** — 10 rules through full pipeline, verifies 3+ conflict types detected (contradiction, circular_dependency, dead_rule), checks rule fields survived serialization round-trip
+2. **test_analyze_then_cli_queries** — analyze → `rules` → `conflicts` → filtered conflicts. Verifies D5 low-confidence display (conf=70%, manual review warning)
+3. **test_analyze_two_pdfs_incremental** — two sequential analyze runs, proves second run detects cross-PDF contradictions
+4. **test_analyze_low_confidence_rules_preserved** — low-confidence (0.70) repealed rules survive the pipeline intact
+5. **test_supersession_chain_detected** — 3-rule supersession chain (GHMC-BP-005 → HMDA-BP-003 → HMDA-BP-004) flagged correctly
+
+**Tests:** 121 passed (was 116, +5 new)
+**Pushback:** Existing analyze tests mock internal layers, not external boundaries — they don't test real integration
+
+**Next for Arjun:** We have 121 tests, all 6 modules, and true e2e coverage. Time to review: are we MVP-complete? Anything missing before we call it shippable?
+
+---
