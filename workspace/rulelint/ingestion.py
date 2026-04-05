@@ -61,7 +61,7 @@ def ingest_pdf(path: str | Path) -> DocumentText:
                 if ocr_text:
                     doc.pages.append(PageText(page_number=i, text=ocr_text, method="ocr"))
                 else:
-                    doc.pages.append(PageText(page_number=i, text="", method="pdfplumber"))
+                    doc.pages.append(PageText(page_number=i, text="", method="none"))
 
     return doc
 

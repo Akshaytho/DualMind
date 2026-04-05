@@ -132,3 +132,4 @@ class TestIngestPdf:
         doc = ingest_pdf(pdf_path)
         assert doc.page_count == 1
         assert doc.pages[0].text == ""
+        assert doc.pages[0].method == "none"  # both pdfplumber and OCR failed

@@ -417,7 +417,7 @@ class TestDryRun:
             pages=[
                 PageText(page_number=1, text="A" * 500, method="pdfplumber"),
                 PageText(page_number=2, text="B" * 100, method="ocr"),
-                PageText(page_number=3, text="", method="pdfplumber"),
+                PageText(page_number=3, text="", method="none"),
             ],
         )
 
@@ -433,7 +433,7 @@ class TestDryRun:
         assert "Page 2" in output
         assert "ocr" in output
         assert "Page 3" in output
-        assert "EMPTY" in output or "0 chars" in output
+        assert "FAILED" in output
 
     @patch("rulelint.cli.ingest_pdf")
     def test_dry_run_reports_ocr_fallback_count(self, mock_ingest, tmp_path, capsys):
@@ -473,6 +473,30 @@ class TestDryRun:
 
         main(["analyze", str(pdf_path), "--dry-run", "--db", str(db_path)])
         assert not db_path.exists()
+
+    @patch("rulelint.cli.ingest_pdf")
+    def test_dry_run_reports_failed_pages(self, mock_ingest, tmp_path, capsys):
+        """--dry-run should distinguish failed extraction from truly empty pages."""
+        from rulelint.ingestion import DocumentText, PageText
+
+        mock_ingest.return_value = DocumentText(
+            source_path="test.pdf",
+            pages=[
+                PageText(page_number=1, text="Good text " * 50, method="pdfplumber"),
+                PageText(page_number=2, text="", method="none"),  # both methods failed
+            ],
+        )
+
+        pdf_path = tmp_path / "test.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+        result = main(["analyze", str(pdf_path), "--dry-run"])
+        assert result == 0
+
+        output = capsys.readouterr().out
+        assert "FAILED" in output
+        assert "no text extracted" in output
+        assert "Extraction failed on 1 page(s)" in output
 
     def test_dry_run_parser_flag(self):
         parser = _build_parser()

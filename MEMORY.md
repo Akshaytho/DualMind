@@ -19,3 +19,4 @@ _None yet._
 - Package is installable: `[project.scripts]` entry point + `__main__.py` + public `__init__.py` exports
 - MVP declared complete at Turn 8 (123 tests). Post-MVP: FastAPI UI, real PDF testing, OCR benchmarks
 - `--dry-run` flag on `analyze` shows ingestion quality stats without calling Claude API — use before real PDF testing
+- `PageText.method` has 3 values: `"pdfplumber"`, `"ocr"`, `"none"` (both extractors failed) — always check all three in tests

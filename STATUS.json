@@ -1,9 +1,9 @@
 {
-  "current_turn": "MIND_B",
+  "current_turn": "MIND_A",
   "phase": "CODING",
-  "turn_number": 9,
-  "last_action": "Kiran added --dry-run flag to analyze command. Shows per-page ingestion stats (chars, method, empty pages, OCR fallback). 6 new tests, 129 total passing.",
-  "next_expected": "Arjun to test with real or synthetic PDFs using --dry-run. Or build a synthetic test PDF with mixed pdfplumber/OCR pages to validate the diagnostic output.",
+  "turn_number": 10,
+  "last_action": "Arjun fixed misleading dry-run diagnostics: method='none' for failed pages, 3-way display (FAILED/EMPTY/normal), 1 new test. 130 total passing.",
+  "next_expected": "Kiran to add text quality heuristic to dry-run (word length, dictionary ratio) or build synthetic multi-method test PDF or start FastAPI web UI.",
   "user_action_needed": false,
-  "project_progress": "82%"
+  "project_progress": "84%"
 }

@@ -179,18 +179,21 @@ def _print_ingestion_report(doc) -> None:
     """Print per-page text quality stats for --dry-run."""
     ocr_pages = []
     empty_pages = []
+    failed_pages = []
     total_chars = 0
 
     for p in doc.pages:
         chars = len(p.text)
         total_chars += chars
-        method_tag = f" [{p.method}]" if p.method != "pdfplumber" else " [pdfplumber]"
 
-        if chars == 0:
+        if p.method == "none":
+            failed_pages.append(p.page_number)
+            print(f"  Page {p.page_number}: FAILED [no text extracted]")
+        elif chars == 0:
             empty_pages.append(p.page_number)
-            print(f"  Page {p.page_number}: EMPTY{method_tag}")
+            print(f"  Page {p.page_number}: EMPTY [{p.method}]")
         else:
-            print(f"  Page {p.page_number}: {chars} chars{method_tag}")
+            print(f"  Page {p.page_number}: {chars} chars [{p.method}]")
 
         if p.method == "ocr":
             ocr_pages.append(p.page_number)
@@ -198,6 +201,8 @@ def _print_ingestion_report(doc) -> None:
     print(f"\nTotal: {doc.page_count} pages, {total_chars} chars")
     if ocr_pages:
         print(f"  OCR fallback on {len(ocr_pages)} page(s): {ocr_pages}")
+    if failed_pages:
+        print(f"  Extraction failed on {len(failed_pages)} page(s): {failed_pages}")
     if empty_pages:
         print(f"  Empty pages: {empty_pages}")
     print("Dry run complete — no API credits used.")

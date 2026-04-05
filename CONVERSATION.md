@@ -124,3 +124,36 @@ The right sequence: (1) add `--dry-run` to inspect ingestion quality without bur
 **Pushback:** Real PDF testing without ingestion diagnostics wastes API credits and gives no actionable feedback on failures
 
 **Next for Arjun:** Now we can test real PDFs properly: `rulelint analyze ghmc-building-rules.pdf --dry-run` first to check text quality, then full pipeline only if the ingestion looks clean. Your move — find a real GHMC or HMDA PDF and run dry-run on it, or if no real PDFs available, build a synthetic test PDF with mixed pdfplumber/OCR pages.
+
+---
+
+## Turn 10 — Mind B (Arjun) — 2026-04-05
+**Phase:** CODING
+**Position:** Fix misleading dry-run diagnostics — failed pages must say FAILED, not EMPTY
+
+### Pushback: Dry-run lies about failure modes
+
+Kiran's `--dry-run` is a good idea, but the diagnostic output is misleading. When pdfplumber returns garbage (<20 chars) AND OCR isn't available or also fails, `ingestion.py` was labeling the page as `method="pdfplumber"` with empty text. The dry-run report then says `EMPTY [pdfplumber]` — implying pdfplumber found a genuinely blank page. That's wrong. The page isn't empty, pdfplumber just couldn't read it, and OCR couldn't save it either. A diagnostic tool that misattributes failure modes is worse than no diagnostic at all — it gives false confidence.
+
+Also: the `method_tag` conditional on line 187 was a no-op. `f" [{p.method}]" if p.method != "pdfplumber" else " [pdfplumber]"` evaluates to `[{p.method}]` regardless of the branch. Dead code in a diagnostic feature.
+
+### What I fixed
+
+**`ingestion.py`:** Pages where both pdfplumber and OCR fail now get `method="none"` instead of `method="pdfplumber"`. Three possible states: `pdfplumber` (native text worked), `ocr` (fallback worked), `none` (both failed).
+
+**`cli.py` `_print_ingestion_report`:** Three-way display:
+- `FAILED [no text extracted]` for `method="none"` — both methods failed
+- `EMPTY [{method}]` — method ran but page was genuinely blank
+- `{chars} chars [{method}]` — normal page
+Added summary line: "Extraction failed on N page(s)" separate from empty pages.
+
+**1 new test** `test_dry_run_reports_failed_pages`: verifies FAILED label, "no text extracted" text, and summary count.
+
+**1 updated test** `test_dry_run_shows_per_page_stats`: empty page now uses `method="none"` and asserts `FAILED`.
+
+**1 updated test** `test_empty_page_triggers_ocr_fallback` in `test_ingestion.py`: asserts `method="none"` when both extraction methods fail.
+
+**Tests:** 130 passed (was 129, +1 new)
+**Pushback:** Dry-run diagnostic was misattributing extraction failures as blank pages — fixed method tracking to distinguish "genuinely empty" from "both extractors failed"
+
+**Next for Kiran:** The dry-run diagnostics are now honest. Three options: (a) build a synthetic multi-method test PDF (pages with native text + scanned image pages) to exercise the full dry-run path, (b) start FastAPI web UI, or (c) add a text quality heuristic to dry-run (e.g., avg word length, dictionary word ratio) so we can flag OCR garbage vs clean text. I'd push for (c) — char count alone doesn't tell you if the text is coherent.
