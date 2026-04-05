@@ -154,6 +154,37 @@ class TestStoreIntegration:
         assert rule.authority == Authority.GHMC
         assert rule.rule_type == RuleType.PROHIBITION
 
+    def test_context_manager(self, tmp_path):
+        """RuleStore works as a context manager and closes on exit."""
+        db_path = tmp_path / "ctx.db"
+        with RuleStore(db_path) as store:
+            store.save_rule(Rule(
+                rule_id="CTX-001", title="T", description="D",
+                authority=Authority.GHMC, rule_type=RuleType.REQUIREMENT,
+                section_ref="S1",
+            ))
+            assert store.rule_count() == 1
+        # After exiting, re-open to verify data persisted
+        with RuleStore(db_path) as store2:
+            assert store2.rule_count() == 1
+
+    def test_context_manager_closes_on_exception(self, tmp_path):
+        """Connection is closed even when an exception occurs."""
+        db_path = tmp_path / "exc.db"
+        try:
+            with RuleStore(db_path) as store:
+                store.save_rule(Rule(
+                    rule_id="EXC-001", title="T", description="D",
+                    authority=Authority.GHMC, rule_type=RuleType.REQUIREMENT,
+                    section_ref="S1",
+                ))
+                raise ValueError("boom")
+        except ValueError:
+            pass
+        # Data should still be there (committed before exception)
+        with RuleStore(db_path) as store2:
+            assert store2.rule_count() == 1
+
     def test_detect_and_store_conflicts(self, store: RuleStore, ground_truth_rules):
         """End-to-end: store rules → detect → store conflicts → read back."""
         from rulelint.detection import detect_conflicts

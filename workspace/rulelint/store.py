@@ -39,6 +39,12 @@ class RuleStore:
     def close(self) -> None:
         self._conn.close()
 
+    def __enter__(self) -> "RuleStore":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
     # ── Rules ────────────────────────────────────────────────────────────
 
     def save_rule(self, rule: Rule, source_file: str | None = None) -> None:
