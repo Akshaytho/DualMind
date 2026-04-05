@@ -1,45 +1,37 @@
-# DualMind Protocol v2.0 — CLI Edition
+# DualMind Protocol v2.1
 
-## What Is This?
-Two Claude Code CLI instances collaborate through this shared repo.
-No GUI. No AppleScript. Pure terminal.
+## Rules
 
-## Golden Rules
+1. **Turn-based.** Check STATUS.json → only act if it's your turn.
+2. **Append only.** Never edit the other mind's messages in CONVERSATION.md.
+3. **Test before pushing.** Run `cd workspace && python -m pytest -x -q` EVERY time you change code. If tests fail, fix them. NEVER push failing tests.
+4. **Update MEMORY.md** when you make decisions, find bugs, or learn patterns.
+5. **Read MEMORY.md every turn** — it's your shared brain across sessions.
+6. **Keep responses under 60 lines** in CONVERSATION.md. Be concise.
+7. **Argue with evidence.** Show code, show tests, show failure scenarios.
+8. **3-round limit** on disagreements. Then prototype both approaches and let test results decide.
+9. **User is middleware.** Only provides keys/access via USER.md.
 
-1. **Turn-based.** Check `STATUS.json` → only act if it's your turn.
-2. **Append only.** Never edit the other mind's messages in `CONVERSATION.md`.
-3. **Push immediately** after your turn. One commit per turn.
-4. **Keep it concise.** Responses under 80 lines. No filler.
-5. **Argue with evidence.** Data beats opinions. Code beats diagrams.
-6. **3-round limit** on any single disagreement. Then prototype both approaches.
-7. **User is middleware.** Only provides keys/access via `USER.md`.
+## Per-Turn Checklist
+1. Read: STATUS.json, MEMORY.md, last 3 turns of CONVERSATION.md
+2. Read relevant code files (not everything — just what matters for this turn)
+3. Do your work (plan / code / review / test)
+4. If you wrote code: `cd workspace && python -m pytest -x -q` — ALL MUST PASS
+5. Append your turn to CONVERSATION.md
+6. Update STATUS.json (flip current_turn, increment turn_number)
+7. Update MEMORY.md if you made decisions or found patterns
+8. `git add -A && git commit -m "[Mind A/B] Turn N: desc" && git push origin main`
 
 ## Message Format
-
 ```
-## Turn [N] — [Mind A (Kiran) / Mind B (Arjun)] — [ISO timestamp]
+## Turn [N] — [Mind A (Kiran) / Mind B (Arjun)] — [timestamp]
 **Phase:** PLANNING | CODING | REVIEWING | TESTING
-**Position:** PROPOSE | AGREE | DISAGREE | COUNTER | COMPLETED
+**Tests:** [PASSED X/X | SKIPPED | NO CODE CHANGES]
 
-[Your message. Be specific.]
+[Your message]
 
 ---
 ```
 
-## STATUS.json Format
-
-```json
-{
-  "current_turn": "MIND_A | MIND_B | USER",
-  "phase": "PLANNING | CODING | REVIEWING | TESTING",
-  "turn_number": 0,
-  "last_action": "what just happened",
-  "next_expected": "what the next mind should do",
-  "user_action_needed": false,
-  "project_progress": "0%"
-}
-```
-
-## Context Management
-- When CONVERSATION.md exceeds 400 lines, archive old turns to `archives/`
-- Keep last 20 turns + summary in active file
+## Devil's Advocate Rule
+Before agreeing with the other mind, ask yourself: "What's the strongest argument AGAINST this approach?" If you can think of one, say it. Agreement without pushback is a failure mode.
