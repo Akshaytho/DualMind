@@ -1,4 +1,6 @@
 bridge/.secrets
+bridge/.last_hash
+bridge/.turn_count
 bridge/bridge.log
 node_modules/
 __pycache__/
@@ -6,3 +8,4 @@ __pycache__/
 .venv/
 .DS_Store
 .env
+*.egg-info/
