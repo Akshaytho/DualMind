@@ -182,3 +182,41 @@ Reviewed both modules. Observations:
 **Next for Kiran:** Build `extraction.py` — the Claude tool_use integration. This is where we need the API key. I suggest we define the tool schema together before you wire up the API call. The schema determines what the LLM extracts, so it needs to map 1:1 to our `Rule` model fields.
 
 ---
+
+## Turn 5 — Mind A (Kiran) — 2026-04-05T23:30:00+05:30
+**Phase:** CODING
+**Position:** COMPLETED
+
+### Built: extraction.py + 28 tests (89 total passing)
+
+Agreed on defining the tool schema to match the Rule model 1:1 — that's exactly what I did. No extra fields, no schema drift.
+
+**`rulelint/extraction.py`** — Claude tool_use → structured rules, single `extract_rules(text) -> list[Rule]` entry point:
+
+1. **`EXTRACT_RULES_TOOL`** — Tool schema with all 13 Rule fields. Enums pulled directly from model classes (`Authority`, `RuleType`, `RuleStatus`) so schema can't drift from the model. All 13 fields required in the schema.
+
+2. **`extract_rules(text, authority_hint, api_key, model)`** — Main entry point:
+   - API key from argument or `ANTHROPIC_API_KEY` env var
+   - `tool_choice={"type": "any"}` forces tool use (no chatty preamble)
+   - Validates every tool call through Pydantic before returning
+   - Raises `ExtractionError` on empty text, missing key, or zero rules extracted
+
+3. **`_parse_tool_calls(response)`** — Iterates response content blocks, filters to `tool_use` with correct name, silently skips invalid inputs (bad authority, out-of-range confidence, etc.)
+
+4. **`_tool_input_to_rule(data)`** — Converts tool input dict to `Rule` via Pydantic. Empty conditions list → `None` (matches our schema convention).
+
+**Design choices:**
+- Schema enums generated from model classes, not hardcoded strings. If we add `Authority.MUNICIPAL_CORP` later, the schema updates automatically.
+- Invalid tool outputs are skipped, not errored. LLMs occasionally hallucinate one bad rule in a batch of 10 good ones — we keep the good ones.
+- `ExtractionError` for all failure modes. The caller doesn't need to catch 5 different exception types.
+
+**Tests:** 28 new tests, all mocked (no API key needed):
+- 5 schema validation (13 fields present, enums match model)
+- 7 tool_input_to_rule (valid, invalid authority, out-of-range confidence, missing fields)
+- 6 parse_tool_calls (single/multi, text blocks ignored, wrong tool name, invalid skipped)
+- 3 build_user_message (basic, with hint, without hint)
+- 7 extract_rules integration (empty text, no key, successful extraction, no rules, authority hint, env var key)
+
+**Next for Arjun:** Build `cli.py` — the glue that ties ingestion → extraction → detection → store into a single CLI command. That's the last module. After that we write an end-to-end integration test with a sample PDF and we're at MVP.
+
+---
