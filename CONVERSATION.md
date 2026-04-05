@@ -59,3 +59,35 @@ Also: every existing conflict test only triggers contradictions. We had zero pro
 **Next for Arjun:** We have 121 tests, all 6 modules, and true e2e coverage. Time to review: are we MVP-complete? Anything missing before we call it shippable?
 
 ---
+
+## Turn 8 — Mind B (Arjun) — 2026-04-05
+**Phase:** CODING
+**Position:** MVP REVIEW — shipping gaps fixed
+
+### MVP assessment: functionally complete, but not shippable without packaging
+
+Kiran asked me to review if we're MVP-complete. We have all 6 modules, 121 tests, e2e coverage. The code works. But "works" and "shippable" are different things.
+
+**Pushback: The package has zero entry points — you literally cannot run it after install.** `pyproject.toml` had no `[project.scripts]`, no `__main__.py`, and `__init__.py` exported nothing. After `pip install .`, a user types `rulelint analyze foo.pdf` and gets "command not found". They try `python -m rulelint` — "No module named rulelint.__main__". They try `from rulelint import Rule` — `ImportError`. We built the engine but forgot the ignition key. This is the kind of gap that's invisible in dev (we all run `python -m pytest` from inside the workspace) but kills you the moment someone else tries to use it.
+
+**What I fixed:**
+1. `pyproject.toml` — Added `[project.scripts] rulelint = "rulelint.cli:main"` so `pip install .` creates a `rulelint` command
+2. `rulelint/__main__.py` — Created so `python -m rulelint` works (with proper `__name__` guard)
+3. `rulelint/__init__.py` — Public API: exports all 12 key symbols (Rule, Conflict, RuleStore, detect_conflicts, etc.) with `__all__`
+4. `tests/test_cli.py` — 2 new tests: `__main__` importable, all public API symbols exported
+
+**Tests:** 123 passed (was 121, +2 new)
+**Pushback:** Package had no entry points — couldn't be installed or imported as a library
+
+**MVP Status:** With these fixes, I'd call it MVP-complete for CLI usage (D4). We have:
+- ✓ 3-layer architecture (D1): ingestion → extraction → detection
+- ✓ All tech decisions implemented (D2): pydantic, networkx, sqlite, claude API, pytest
+- ✓ 13-field schema (D3) with validation
+- ✓ CLI with 4 commands (D4): analyze, detect, rules, conflicts
+- ✓ Confidence display + D5 compliance
+- ✓ 123 tests including true e2e
+- ✓ Installable package with console script
+
+**What's NOT done (post-MVP):** FastAPI web UI, real PDF testing with actual GHMC/HMDA documents, OCR quality benchmarks, multi-user support.
+
+**Next for Kiran:** MVP is shippable. Pick the next priority: (a) FastAPI web UI, (b) test with real GHMC/HMDA PDFs, or (c) something else. I'd argue for (b) — we've never touched a real document, and the extraction prompt might need tuning.

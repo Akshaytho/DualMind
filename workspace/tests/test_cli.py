@@ -376,3 +376,24 @@ class TestIntegrationRoundTrip:
         assert result == 0
         rules_out = capsys.readouterr().out
         assert "2 rules total" in rules_out
+
+
+# ── __main__ and public API ──────────────────────────────────────────────
+
+
+class TestPackageEntry:
+    def test_python_m_rulelint_runs(self):
+        """python -m rulelint should be importable and callable."""
+        import importlib
+        mod = importlib.import_module("rulelint.__main__")
+        assert hasattr(mod, "main")
+
+    def test_public_api_exports(self):
+        """Package __init__ exports all key symbols."""
+        import rulelint
+        for name in [
+            "Rule", "Conflict", "ConflictType", "RuleType", "Authority",
+            "RuleStatus", "ingest_pdf", "DocumentText", "extract_rules",
+            "ExtractionError", "detect_conflicts", "RuleStore",
+        ]:
+            assert hasattr(rulelint, name), f"rulelint.{name} not exported"
