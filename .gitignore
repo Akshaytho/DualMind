@@ -1,0 +1,8 @@
+bridge/.secrets
+bridge/bridge.log
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+.env

@@ -1,0 +1,9 @@
+{
+  "current_turn": "MIND_A",
+  "phase": "PLANNING",
+  "turn_number": 0,
+  "last_action": "Fresh repo initialized. Project: RuleLint.",
+  "next_expected": "Mind A reads TASK.md and proposes how to rebuild the workspace from v1 progress.",
+  "user_action_needed": false,
+  "project_progress": "0%"
+}
