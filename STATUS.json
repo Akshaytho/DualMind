@@ -1,9 +1,9 @@
 {
-  "current_turn": "MIND_B",
+  "current_turn": "MIND_A",
   "phase": "CODING",
-  "turn_number": 3,
-  "last_action": "Mind A built models.py + detection.py + 31 passing tests. 5 detection algorithms, 15 ground truth rules, StrEnum typing, single detect_conflicts() entry point.",
-  "next_expected": "Mind B reviews code, then builds ingestion.py + store.py.",
+  "turn_number": 4,
+  "last_action": "Mind B reviewed code, built ingestion.py + store.py + 30 new tests. 61 total tests passing. PDF extraction with OCR fallback, SQLite CRUD with Pydantic serialization.",
+  "next_expected": "Mind A builds extraction.py (Claude tool_use integration). Needs API key from user.",
   "user_action_needed": false,
-  "project_progress": "20%"
+  "project_progress": "35%"
 }

@@ -144,3 +144,41 @@ Let's build.
 **Your turn:** Review this code, then build `ingestion.py` + `store.py`. The detection module is self-contained — you can `from rulelint.detection import detect_conflicts` and feed it any `list[Rule]`.
 
 ---
+
+## Turn 4 — Mind B (Arjun) — 2026-04-05T23:00:00+05:30
+**Phase:** CODING
+**Position:** COMPLETED
+
+### Code review: models.py + detection.py — clean, shipping it
+
+Reviewed both modules. Observations:
+
+1. **models.py** — Exactly right. 13 fields, StrEnum typing, Pydantic validation on confidence bounds. The `Conflict` model with `min_length=1` on `rule_ids` is a good guard. No notes.
+
+2. **detection.py** — Clean single entry point. The jurisdictional overlap filter correctly excludes opposing-type pairs — no double-counting with contradictions. One minor thing: `_detect_contradictions` compares raw strings (`"active"`) instead of `RuleStatus.ACTIVE`, but since StrEnum equality works both ways, it's functionally correct. Not worth changing.
+
+3. **ground_truth.json** — The HMDA-BP-004 ↔ HMDA-BP-005 circular dependency is a good test case. 15 rules with known conflicts is enough for validation.
+
+### Built: ingestion.py + store.py + 30 new tests (61 total passing)
+
+**`rulelint/ingestion.py`** — PDF → clean text, single `ingest_pdf(path) -> DocumentText` entry point:
+- `pdfplumber` for native text extraction
+- OCR fallback via `pytesseract` (graceful degradation if not installed)
+- `_clean_text()`: collapses whitespace, strips artifacts
+- `_is_usable()`: 20-char minimum to filter blank pages
+- `PageText` tracks extraction method per page (for confidence scoring later)
+
+**`rulelint/store.py`** — SQLite persistence via `RuleStore` class:
+- Rules stored as JSON blobs keyed by `rule_id` (INSERT OR REPLACE)
+- Conflicts stored separately, cleared on re-detection (`save_conflicts` wipes old results)
+- Filter conflicts by type: `get_conflicts(ConflictType.CONTRADICTION)`
+- `source_file` column on rules for provenance tracking
+- All methods use `model_dump_json()` / `model_validate_json()` — Pydantic handles serialization
+
+**Design choice:** `save_conflicts()` clears previous conflicts before inserting. Detection is deterministic — re-running on the same rules must produce the same results. Stale conflicts are worse than no conflicts.
+
+**Tests:** 16 for store (8 rule CRUD + 4 conflict CRUD + 2 integration with ground truth + 2 edge cases), 14 for ingestion (5 text cleaning + 4 usability + 3 DocumentText + 2 PDF extraction with mocks).
+
+**Next for Kiran:** Build `extraction.py` — the Claude tool_use integration. This is where we need the API key. I suggest we define the tool schema together before you wire up the API call. The schema determines what the LLM extracts, so it needs to map 1:1 to our `Rule` model fields.
+
+---
