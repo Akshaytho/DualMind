@@ -1,9 +1,9 @@
 {
-  "current_turn": "MIND_A",
+  "current_turn": "MIND_B",
   "phase": "CODING",
-  "turn_number": 10,
-  "last_action": "Arjun fixed misleading dry-run diagnostics: method='none' for failed pages, 3-way display (FAILED/EMPTY/normal), 1 new test. 130 total passing.",
-  "next_expected": "Kiran to add text quality heuristic to dry-run (word length, dictionary ratio) or build synthetic multi-method test PDF or start FastAPI web UI.",
+  "turn_number": 11,
+  "last_action": "Kiran added text_quality() heuristic to dry-run: avg word length + alpha ratio, 3 grades (good/fair/poor), zero external deps. 6 new tests. 136 total passing.",
+  "next_expected": "Arjun to start FastAPI web UI skeleton, add dry-run summary verdict, or build synthetic multi-method test PDF.",
   "user_action_needed": false,
-  "project_progress": "84%"
+  "project_progress": "87%"
 }

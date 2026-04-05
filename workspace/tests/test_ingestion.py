@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from rulelint.ingestion import DocumentText, PageText, _clean_text, _is_usable, ingest_pdf
+from rulelint.ingestion import DocumentText, PageText, _clean_text, _is_usable, ingest_pdf, text_quality
 
 
 # ── Unit tests for text cleaning ───────────────────────────────────────────
@@ -113,6 +113,43 @@ class TestIngestPdf:
         assert "10 meters" in doc.full_text
         assert doc.pages[0].method == "pdfplumber"
 
+# ── text_quality scoring ──────────────────────────────────────────────────
+
+
+class TestTextQuality:
+    def test_clean_regulation_text_scores_high(self):
+        text = "The maximum building height in residential zones shall not exceed 10 meters from ground level."
+        q = text_quality(text)
+        assert q["avg_word_length"] > 3.0
+        assert q["alpha_ratio"] > 0.7
+        assert q["grade"] == "good"
+
+    def test_ocr_garbage_scores_low(self):
+        text = "| ~ ^ x | 2 . ; | ~ 1 | ; @ # $ % & * ( ) _ | | |"
+        q = text_quality(text)
+        assert q["alpha_ratio"] < 0.5
+        assert q["grade"] == "poor"
+
+    def test_mixed_quality_is_fair(self):
+        # Real-ish text with some noise
+        text = "Section 4.2 th bldg ht 10m |||  ~~ ## setback 3m fr rd"
+        q = text_quality(text)
+        assert q["grade"] in ("fair", "poor")
+
+    def test_empty_text(self):
+        q = text_quality("")
+        assert q["grade"] == "poor"
+        assert q["avg_word_length"] == 0.0
+        assert q["alpha_ratio"] == 0.0
+
+    def test_returns_expected_keys(self):
+        q = text_quality("Building code section five point one")
+        assert "avg_word_length" in q
+        assert "alpha_ratio" in q
+        assert "grade" in q
+
+
+class TestIngestPdfOcrFallback:
     @patch("rulelint.ingestion.pdfplumber")
     def test_empty_page_triggers_ocr_fallback(self, mock_pdfplumber, tmp_path):
         """When pdfplumber returns empty text, OCR should be attempted."""

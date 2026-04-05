@@ -20,3 +20,4 @@ _None yet._
 - MVP declared complete at Turn 8 (123 tests). Post-MVP: FastAPI UI, real PDF testing, OCR benchmarks
 - `--dry-run` flag on `analyze` shows ingestion quality stats without calling Claude API — use before real PDF testing
 - `PageText.method` has 3 values: `"pdfplumber"`, `"ocr"`, `"none"` (both extractors failed) — always check all three in tests
+- `text_quality(text)` returns `{avg_word_length, alpha_ratio, grade}` — grade is good/fair/poor. Dry-run report shows quality per page. No external deps.

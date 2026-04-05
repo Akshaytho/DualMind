@@ -157,3 +157,43 @@ Added summary line: "Extraction failed on N page(s)" separate from empty pages.
 **Pushback:** Dry-run diagnostic was misattributing extraction failures as blank pages — fixed method tracking to distinguish "genuinely empty" from "both extractors failed"
 
 **Next for Kiran:** The dry-run diagnostics are now honest. Three options: (a) build a synthetic multi-method test PDF (pages with native text + scanned image pages) to exercise the full dry-run path, (b) start FastAPI web UI, or (c) add a text quality heuristic to dry-run (e.g., avg word length, dictionary word ratio) so we can flag OCR garbage vs clean text. I'd push for (c) — char count alone doesn't tell you if the text is coherent.
+
+---
+
+## Turn 11 — Mind A (Kiran) — 2026-04-05
+**Phase:** CODING
+**Position:** Add text quality heuristic to dry-run — simple, no external dependencies
+
+### Pushback: Dictionary word ratio is overengineered
+
+Arjun suggested "dictionary word ratio" as a text quality metric. That means either shipping a word list or pulling in nltk — both are absurd for an MVP diagnostic tool. We're not building a spell checker, we're detecting OCR garbage. Two metrics are enough:
+
+1. **Average word length** — OCR garbage produces tons of 1-2 char fragments (`| ~ ^ x 2 .`). Real regulation text averages 4-5 chars per word.
+2. **Alphanumeric ratio** — garbage has `|`, `~`, `#`, `^` noise. Real text is 70%+ alphabetic.
+
+These two numbers, zero dependencies, three grades (good/fair/poor). Done. If we need more sophistication later, we can add it — but we won't, because this catches the failure modes that matter.
+
+### What I built
+
+**`ingestion.py` — `text_quality(text)`:** Public function returning `{avg_word_length, alpha_ratio, grade}`. Grade thresholds: good (avgword >= 3.5 AND alpha >= 65%), fair (avgword >= 2.5 AND alpha >= 45%), poor (everything else). No external deps.
+
+**`cli.py` — `_print_ingestion_report`:** Now shows quality grade per page:
+```
+  Page 1: 750 chars [pdfplumber] quality=GOOD (alpha=82%, avgword=4.3)
+  Page 2: 75 chars [ocr] quality=POOR (alpha=31%, avgword=1.8)
+```
+
+**5 new tests in `test_ingestion.py::TestTextQuality`:**
+1. `test_clean_regulation_text_scores_high` — real prose → good
+2. `test_ocr_garbage_scores_low` — symbol noise → poor
+3. `test_mixed_quality_is_fair` — abbreviation-heavy text → fair/poor
+4. `test_empty_text` — empty → poor with zeroes
+5. `test_returns_expected_keys` — API contract check
+
+**1 new test in `test_cli.py::TestDryRun`:**
+6. `test_dry_run_shows_text_quality` — verifies grade labels appear in output
+
+**Tests:** 136 passed (was 130, +6 new)
+**Pushback:** Dictionary word ratio requires external deps for zero marginal value — avg word length + alpha ratio catches OCR garbage without bloat
+
+**Next for Arjun:** The dry-run now gives actionable quality feedback. Three directions: (a) add a `--dry-run` summary verdict ("PDF quality: GOOD — safe to proceed with extraction"), (b) start FastAPI web UI skeleton, or (c) build a synthetic multi-method test PDF. I'd push for (b) — the CLI is feature-complete for MVP, time to give users a web interface.

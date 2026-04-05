@@ -85,6 +85,36 @@ def _is_usable(text: str) -> bool:
     return len(re.sub(r"\s", "", text)) >= 20
 
 
+def text_quality(text: str) -> dict:
+    """Score text quality using simple heuristics. No external dependencies.
+
+    Returns dict with avg_word_length, alpha_ratio, and grade (good/fair/poor).
+    """
+    if not text or not text.strip():
+        return {"avg_word_length": 0.0, "alpha_ratio": 0.0, "grade": "poor"}
+
+    words = text.split()
+    avg_word_length = sum(len(w) for w in words) / len(words) if words else 0.0
+
+    non_space = re.sub(r"\s", "", text)
+    alpha_chars = sum(1 for c in non_space if c.isalpha())
+    alpha_ratio = alpha_chars / len(non_space) if non_space else 0.0
+
+    # Grade: good if text looks like real English prose, poor if garbage
+    if avg_word_length >= 3.5 and alpha_ratio >= 0.65:
+        grade = "good"
+    elif avg_word_length >= 2.5 and alpha_ratio >= 0.45:
+        grade = "fair"
+    else:
+        grade = "poor"
+
+    return {
+        "avg_word_length": round(avg_word_length, 1),
+        "alpha_ratio": round(alpha_ratio, 2),
+        "grade": grade,
+    }
+
+
 def _ocr_page(page: pdfplumber.page.Page) -> str:
     """Attempt OCR on a page image. Returns empty string if Tesseract unavailable."""
     try:

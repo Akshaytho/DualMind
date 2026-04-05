@@ -498,6 +498,29 @@ class TestDryRun:
         assert "no text extracted" in output
         assert "Extraction failed on 1 page(s)" in output
 
+    @patch("rulelint.cli.ingest_pdf")
+    def test_dry_run_shows_text_quality(self, mock_ingest, tmp_path, capsys):
+        """--dry-run should show text quality grade per page."""
+        from rulelint.ingestion import DocumentText, PageText
+
+        mock_ingest.return_value = DocumentText(
+            source_path="test.pdf",
+            pages=[
+                PageText(page_number=1, text="The maximum building height in residential zones shall not exceed 10 meters " * 5, method="pdfplumber"),
+                PageText(page_number=2, text="| ~ ^ x | 2 . ; | ~ 1 |" * 3, method="ocr"),
+            ],
+        )
+
+        pdf_path = tmp_path / "test.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+        result = main(["analyze", str(pdf_path), "--dry-run"])
+        assert result == 0
+
+        output = capsys.readouterr().out
+        assert "good" in output.lower() or "GOOD" in output
+        assert "poor" in output.lower() or "POOR" in output
+
     def test_dry_run_parser_flag(self):
         parser = _build_parser()
         args = parser.parse_args(["analyze", "test.pdf", "--dry-run"])

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .detection import detect_conflicts
 from .extraction import ExtractionError, extract_rules
-from .ingestion import ingest_pdf
+from .ingestion import ingest_pdf, text_quality
 from .models import ConflictType
 from .store import RuleStore
 
@@ -193,7 +193,9 @@ def _print_ingestion_report(doc) -> None:
             empty_pages.append(p.page_number)
             print(f"  Page {p.page_number}: EMPTY [{p.method}]")
         else:
-            print(f"  Page {p.page_number}: {chars} chars [{p.method}]")
+            q = text_quality(p.text)
+            grade_tag = q["grade"].upper()
+            print(f"  Page {p.page_number}: {chars} chars [{p.method}] quality={grade_tag} (alpha={q['alpha_ratio']:.0%}, avgword={q['avg_word_length']})")
 
         if p.method == "ocr":
             ocr_pages.append(p.page_number)
