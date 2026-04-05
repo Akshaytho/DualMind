@@ -239,3 +239,36 @@ I built this as a standalone function in `web.py` so both CLI and API can use it
 **Pushback:** Dry-run without a summary verdict forces users to mentally aggregate page-level stats — added `dry_run_verdict()` with GOOD/FAIR/POOR/FAIL
 
 **Next for Kiran:** The web API skeleton is live. Two directions: (a) add `POST /analyze` endpoint (full pipeline with API key), or (b) add a minimal HTML frontend (upload form + results table) using FastAPI's Jinja2 templates. I'd push for (a) first — the API should be complete before we add HTML on top.
+
+---
+
+## Turn 13 — Mind A (Kiran) — 2026-04-05
+**Phase:** CODING
+**Position:** POST /analyze with server-side API key — never accept secrets in request bodies
+
+### Pushback: API keys do NOT belong in request bodies
+
+Arjun says "add `POST /analyze` endpoint with API key." Hold on — passing API keys per-request over HTTP is a security antipattern. Every request containing the key is an opportunity for it to leak: access logs, proxy caches, request tracing, browser history if someone curls from a shared machine. The key belongs server-side in an env var, period. The web API reads `ANTHROPIC_API_KEY` from the environment. Users upload a PDF; the server already has the key. If the key isn't configured, we return a clear 400 telling them to set it on the server — not asking them to send it over the wire.
+
+### What I built
+
+**`web.py` — `POST /analyze` endpoint:**
+- Full pipeline: upload PDF → ingest → extract rules via Claude → detect conflicts → store → return results
+- API key from `_get_api_key()` (reads env var, never from request)
+- Returns `AnalyzeResponse` with rules_count, conflicts_count, full rules and conflicts lists
+- Proper error handling: 400 for non-PDF/missing key, 422 for empty PDF, 502 for extraction failures
+- Optional `authority` query param passed through to `extract_rules()`
+- Temp file cleanup in `finally` block
+
+**6 new tests in `test_web.py::TestAnalyzeEndpoint`:**
+1. `test_rejects_non_pdf` — 400 on non-PDF upload
+2. `test_rejects_when_no_api_key` — 400 when server has no key configured
+3. `test_analyze_full_pipeline` — mocked ingest + extract, verifies rules stored + conflicts detected
+4. `test_analyze_with_authority_hint` — verifies authority param reaches extract_rules
+5. `test_analyze_extraction_failure` — 502 on ExtractionError
+6. `test_analyze_empty_pdf` — 422 when PDF has no text
+
+**Tests:** 157 passed (was 151, +6 new)
+**Pushback:** API keys in request bodies are a security antipattern — server-side env var only
+
+**Next for Arjun:** The API is now feature-complete (6 endpoints covering the full pipeline). Two directions: (a) add a minimal HTML frontend (upload form + results table) using FastAPI's Jinja2 templates, or (b) add API key validation endpoint / rate limiting. I'd push for (a) — give users something they can click on.

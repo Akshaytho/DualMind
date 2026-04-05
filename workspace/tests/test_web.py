@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from unittest.mock import patch
 
 import pytest
@@ -208,3 +209,122 @@ class TestDryRunEndpoint:
         assert data["page_count"] == 1
         assert "verdict" in data
         assert "overall_grade" in data
+
+
+# ── POST /analyze endpoint tests ─────────────────────────────────────────
+
+
+class TestAnalyzeEndpoint:
+    def test_rejects_non_pdf(self, client):
+        resp = client.post("/analyze", files={"file": ("test.txt", b"hello", "text/plain")})
+        assert resp.status_code == 400
+
+    def test_rejects_when_no_api_key(self, client):
+        """Should 400 when no API key is configured server-side."""
+        mock_doc = DocumentText(
+            source_path="/tmp/test.pdf",
+            pages=[
+                PageText(page_number=1, text="Building regulation text with adequate words", method="pdfplumber"),
+            ],
+        )
+        with patch("rulelint.web.ingest_pdf", return_value=mock_doc), \
+             patch.dict("os.environ", {}, clear=True), \
+             patch("rulelint.web._get_api_key", return_value=None):
+            resp = client.post("/analyze", files={"file": ("test.pdf", b"%PDF-fake", "application/pdf")})
+        assert resp.status_code == 400
+        assert "API key" in resp.json()["detail"]
+
+    def test_analyze_full_pipeline(self, client, tmp_path):
+        """Mock ingest + extract to test full pipeline through the endpoint."""
+        mock_doc = DocumentText(
+            source_path="/tmp/test.pdf",
+            pages=[
+                PageText(page_number=1, text="Building regulation text with adequate words", method="pdfplumber"),
+            ],
+        )
+        mock_rules = [
+            Rule(
+                rule_id="GHMC-BP-001", title="Setback", description="Min 5m setback",
+                authority=Authority.GHMC, rule_type=RuleType.REQUIREMENT,
+                section_ref="4.1",
+            ),
+            Rule(
+                rule_id="HMDA-BP-001", title="No setback", description="No setback needed",
+                authority=Authority.HMDA, rule_type=RuleType.PROHIBITION,
+                section_ref="3.1",
+            ),
+        ]
+        db = str(tmp_path / "test.db")
+        with patch("rulelint.web.ingest_pdf", return_value=mock_doc), \
+             patch("rulelint.web.extract_rules", return_value=mock_rules), \
+             patch("rulelint.web._get_api_key", return_value="fake-key"):
+            resp = client.post(
+                "/analyze",
+                files={"file": ("test.pdf", b"%PDF-fake", "application/pdf")},
+                params={"db": db},
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["rules_count"] == 2
+        assert data["conflicts_count"] >= 1  # contradiction detected
+        assert len(data["rules"]) == 2
+        assert len(data["conflicts"]) >= 1
+
+    def test_analyze_with_authority_hint(self, client, tmp_path):
+        """Authority hint should be passed through to extract_rules."""
+        mock_doc = DocumentText(
+            source_path="/tmp/test.pdf",
+            pages=[
+                PageText(page_number=1, text="Regulation text for authority test", method="pdfplumber"),
+            ],
+        )
+        mock_rules = [
+            Rule(
+                rule_id="GHMC-BP-001", title="Test", description="Test rule",
+                authority=Authority.GHMC, rule_type=RuleType.REQUIREMENT,
+                section_ref="1.0",
+            ),
+        ]
+        db = str(tmp_path / "test.db")
+        with patch("rulelint.web.ingest_pdf", return_value=mock_doc), \
+             patch("rulelint.web.extract_rules", return_value=mock_rules) as mock_extract, \
+             patch("rulelint.web._get_api_key", return_value="fake-key"):
+            resp = client.post(
+                "/analyze",
+                files={"file": ("test.pdf", b"%PDF-fake", "application/pdf")},
+                params={"db": db, "authority": "ghmc"},
+            )
+
+        assert resp.status_code == 200
+        # Verify authority_hint was passed to extract_rules
+        mock_extract.assert_called_once()
+        call_kwargs = mock_extract.call_args
+        assert call_kwargs[1].get("authority_hint") == "ghmc" or \
+               (len(call_kwargs[0]) > 1 and call_kwargs[0][1] == "ghmc")
+
+    def test_analyze_extraction_failure(self, client):
+        """Should 500 when extraction fails."""
+        from rulelint.extraction import ExtractionError
+
+        mock_doc = DocumentText(
+            source_path="/tmp/test.pdf",
+            pages=[
+                PageText(page_number=1, text="Some text here for testing", method="pdfplumber"),
+            ],
+        )
+        with patch("rulelint.web.ingest_pdf", return_value=mock_doc), \
+             patch("rulelint.web.extract_rules", side_effect=ExtractionError("LLM error")), \
+             patch("rulelint.web._get_api_key", return_value="fake-key"):
+            resp = client.post("/analyze", files={"file": ("test.pdf", b"%PDF-fake", "application/pdf")})
+        assert resp.status_code == 502
+        assert "extraction" in resp.json()["detail"].lower() or "LLM" in resp.json()["detail"]
+
+    def test_analyze_empty_pdf(self, client):
+        """Should 422 when PDF has no extractable text."""
+        mock_doc = DocumentText(source_path="/tmp/test.pdf", pages=[])
+        with patch("rulelint.web.ingest_pdf", return_value=mock_doc), \
+             patch("rulelint.web._get_api_key", return_value="fake-key"):
+            resp = client.post("/analyze", files={"file": ("test.pdf", b"%PDF-fake", "application/pdf")})
+        assert resp.status_code == 422
+        assert "no text" in resp.json()["detail"].lower() or "empty" in resp.json()["detail"].lower()

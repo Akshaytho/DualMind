@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from fastapi import FastAPI, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from .detection import detect_conflicts
+from .extraction import ExtractionError, extract_rules
 from .ingestion import DocumentText, ingest_pdf, text_quality
 from .models import Conflict, ConflictType, Rule
 from .store import RuleStore
@@ -134,6 +136,14 @@ def dry_run_verdict(doc: DocumentText) -> DryRunVerdict:
     )
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────
+
+
+def _get_api_key() -> str | None:
+    """Get API key from server-side config (env var). Never from request body."""
+    return os.environ.get("ANTHROPIC_API_KEY")
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
 
@@ -187,3 +197,61 @@ def run_detection(db: str = DEFAULT_DB) -> ConflictsResponse:
         conflicts = detect_conflicts(rules)
         store.save_conflicts(conflicts)
     return ConflictsResponse(count=len(conflicts), conflicts=conflicts)
+
+
+@app.post("/analyze", response_model=AnalyzeResponse)
+async def analyze(
+    file: UploadFile,
+    authority: str | None = None,
+    db: str = DEFAULT_DB,
+) -> AnalyzeResponse:
+    """Full pipeline: upload PDF → ingest → extract rules → detect conflicts.
+
+    API key is read from server-side ANTHROPIC_API_KEY env var (never from request).
+    """
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="File must be a PDF")
+
+    api_key = _get_api_key()
+    if not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="API key not configured. Set ANTHROPIC_API_KEY on the server.",
+        )
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = Path(tmp.name)
+
+    try:
+        # Step 1: Ingest
+        doc = ingest_pdf(tmp_path)
+        if not doc.pages or not doc.full_text.strip():
+            raise HTTPException(status_code=422, detail="No text extracted from PDF — empty or unreadable")
+
+        # Step 2: Extract rules via Claude API
+        try:
+            rules = extract_rules(
+                doc.full_text,
+                authority_hint=authority,
+                api_key=api_key,
+            )
+        except ExtractionError as exc:
+            raise HTTPException(status_code=502, detail=f"Extraction failed: {exc}")
+
+        # Step 3: Store + detect conflicts
+        with RuleStore(db) as store:
+            store.save_rules(rules, source_file=file.filename or "upload.pdf")
+            all_rules = store.get_all_rules()
+            conflicts = detect_conflicts(all_rules)
+            store.save_conflicts(conflicts)
+
+        return AnalyzeResponse(
+            rules_count=len(rules),
+            conflicts_count=len(conflicts),
+            rules=rules,
+            conflicts=conflicts,
+        )
+    finally:
+        tmp_path.unlink(missing_ok=True)
